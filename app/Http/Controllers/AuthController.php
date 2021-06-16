@@ -23,7 +23,7 @@ class AuthController extends Controller
         $credentials = request(['email', 'name', 'password', 'password_confirmation']);
         $validator = Validator::make($credentials, [
             'email' => ['required', 'email', 'unique:users,email', 'max:255'],
-            'username' => ['required', 'unique:users,username', 'max:255'],
+            'name' => ['required', 'unique:users,name', 'max:255'],
             'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()]
         ]);
         if ($validator->fails()){
@@ -41,6 +41,6 @@ class AuthController extends Controller
         if (!Auth::attempt(request()->only('email', 'password'))){
             return response()->json(['message' => 'Something went wrong'], 400);
         }
-        return response()->json(['data' => Auth::user()]);
+        return response()->json(['message' => 'Registration successful', 'data' => Auth::user()]);
     }
 }
