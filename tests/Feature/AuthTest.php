@@ -16,7 +16,7 @@ class AuthTest extends TestCase
      */
     public function test_register()
     {
-        $response = $this->json('post', '/auth/login', [
+        $response = $this->json('post', '/auth/register', [
             'name' => 'test',
             'email' => 'test@example.com',
             'password' => 'Password123',

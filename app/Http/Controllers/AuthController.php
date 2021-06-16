@@ -41,6 +41,12 @@ class AuthController extends Controller
         if (!Auth::attempt(request()->only('email', 'password'))){
             return response()->json(['message' => 'Something went wrong'], 400);
         }
-        return response()->json(['message' => 'Registration successful', 'data' => Auth::user()]);
+        return $this->returnDataWithTokenOrUser($user, 'Registration Successful');
+    }
+
+    private function returnDataWithTokenOrUser($user, $msg): \Illuminate\Http\JsonResponse
+    {
+        $token = $user->createToken(request()->get('token_name') ?? 'app')->plainTextToken;
+        return response()->json(['message' => $msg, 'data' => ['user' => $user, 'token' => $token]]);
     }
 }
