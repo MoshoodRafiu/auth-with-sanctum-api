@@ -63,7 +63,7 @@ class AuthController extends Controller
         if (!Auth::attempt(request()->only('email', 'password'))){
             return response()->json(['message' => 'Invalid login credentials'], 400);
         }
-        $user = User::query()->where('email', request()->get('email'))->first();
+        $user = User::query()->where('email', request('email'))->first();
         return $this->returnDataWithTokenAndData($user, 'Login Successful');
     }
 
@@ -145,9 +145,9 @@ class AuthController extends Controller
         return response()->json(['message' => 'Email verification link resent to '.$user['email']]);
     }
 
-    public function verifyEmail(Request $request): \Illuminate\Http\JsonResponse
+    public function verifyEmail(): \Illuminate\Http\JsonResponse
     {
-        $validator = Validator::make($request->all(), [
+        $validator = Validator::make(\request()->all(), [
             "token" => ['required', 'string'],
             "email" => ['required', 'email', 'string']
         ]);
@@ -157,14 +157,14 @@ class AuthController extends Controller
                 'errors' => $validator->messages()
             ], 422);
         }
-        $user = User::all()->where('email', $request['email'])->first();
+        $user = User::all()->where('email', \request('email'))->first();
         if (!$user){
             return response()->json(['message' => 'User account not found'],400);
         }
         if ($user['email_verified_at']){
             return response()->json(['message' => 'Email already verified'],400);
         }
-        if (!Hash::check($request['token'], $user['email_verification_token'])){
+        if (!Hash::check(\request('token'), $user['email_verification_token'])){
             return response()->json(['message' => 'Email not verified, token is invalid'],400);
         }
         if (now()->gt($user['email_verification_token_expiry'])){
@@ -175,9 +175,34 @@ class AuthController extends Controller
         return response()->json(['message' => 'Email verified successfully']);
     }
 
+    public function changePassword(): \Illuminate\Http\JsonResponse
+    {
+        $validator = Validator::make(request()->all(), [
+            'old_password' => ['required', 'string'],
+            'new_password' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+        if ($validator->fails()){
+            return response()->json([
+                'message' => 'Invalid input data',
+                'errors' => $validator->messages()
+            ], 422);
+        }
+        if (!Hash::check(\request('old_password'), \request()->user()['password'])){
+            return response()->json(['message' => 'Old password incorrect'], 400);
+        }
+        if (Hash::check(\request('new_password'), \request()->user()['password'])){
+            return response()->json(['message' => 'Please enter a different new password'], 400);
+        }
+        \request()->user()->update(['password' => Hash::make(\request('new_password'))]);
+        return response()->json([
+            'message' => 'Password updated successfully',
+            'data' => \request()->user()
+        ]);
+    }
+
     private function returnDataWithTokenAndData($user, $msg): \Illuminate\Http\JsonResponse
     {
-        $token = $user->createToken(request()->get('token_name') ?? 'app')->plainTextToken;
+        $token = $user->createToken(request('token_name') ?? 'app')->plainTextToken;
         return response()->json(['message' => $msg, 'data' => ['user' => $user, 'token' => $token]]);
     }
 }

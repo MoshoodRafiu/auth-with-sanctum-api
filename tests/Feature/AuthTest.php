@@ -99,4 +99,19 @@ class AuthTest extends TestCase
 //        $response->dump();
         $response->assertStatus(200);
     }
+
+    public function test_change_password()
+    {
+        Sanctum::actingAs(
+            User::factory()->create()
+        );
+        $response = $this->json('post', '/auth/password/change', [
+            'old_password' => 'password',
+            'new_password' => 'Password123',
+            'new_password_confirmation' => 'Password123'
+        ]);
+
+        $response->dump();
+        $response->assertStatus(200);
+    }
 }
