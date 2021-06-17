@@ -17,7 +17,7 @@ class AuthController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('auth:sanctum')->except('login', 'register', 'sendPasswordResetLink', 'resetPassword');
+        $this->middleware('auth:sanctum')->except('login', 'register', 'sendPasswordResetLink', 'resetPassword', 'verifyEmail');
     }
 
     public function register(): \Illuminate\Http\JsonResponse
