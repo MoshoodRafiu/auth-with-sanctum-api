@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendPasswordResetLink;
 use App\Jobs\SendVerificationEmailJob;
 use App\Models\User;
+use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
@@ -40,7 +43,7 @@ class AuthController extends Controller
         $user = User::create($credentials);
         // Send email verification email and send response
         SendVerificationEmailJob::dispatch($user, $otp);
-        return $this->returnDataWithTokenOrUser($user, 'Registration Successful');
+        return $this->returnDataWithTokenAndData($user, 'Registration Successful');
     }
 
     public function login(): \Illuminate\Http\JsonResponse
@@ -61,10 +64,67 @@ class AuthController extends Controller
             return response()->json(['message' => 'Invalid login credentials'], 400);
         }
         $user = User::query()->where('email', request()->get('email'))->first();
-        return $this->returnDataWithTokenOrUser($user, 'Login Successful');
+        return $this->returnDataWithTokenAndData($user, 'Login Successful');
     }
 
-    private function returnDataWithTokenOrUser($user, $msg): \Illuminate\Http\JsonResponse
+    public function logout(): \Illuminate\Http\JsonResponse
+    {
+        \request()->user()->currentAccessToken()->delete();
+        return response()->json(['message' => 'Logout successful']);
+    }
+
+    public function sendPasswordResetLink(): \Illuminate\Http\JsonResponse
+    {
+        $validator = Validator::make(\request()->all(), [
+            'email' => ['required', 'email']
+        ]);
+        if ($validator->fails()){
+            return response()->json([
+                'message' => 'Input validation error',
+                'errors' => $validator->messages()
+            ], 422);
+        }
+        if (!User::query()->where('email', \request()->only('email'))->first())
+            return response()->json(['message' => "We couldn't find a user with this email address"], 404);
+        SendPasswordResetLink::dispatch(\request()->only('email'));
+        return response()->json(['message' => 'We have emailed you a password reset link']);
+    }
+
+    public function resetPassword(): \Illuminate\Http\JsonResponse
+    {
+        $validator = Validator::make(\request()->all(), [
+            'token' => ['required'],
+            'email' => ['required', 'email'],
+            'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()]
+        ]);
+        if ($validator->fails()){
+            return response()->json([
+                'message' => 'Input validation error',
+                'errors' => $validator->messages()
+            ], 422);
+        }
+        $status = \Illuminate\Support\Facades\Password::reset(
+            \request()->only('email', 'password', 'password_confirmation', 'token'),
+            function ($user, $password) {
+                $user->forceFill([
+                    'password' => Hash::make($password)
+                ])->setRememberToken(Str::random(60));
+
+                $user->save();
+
+                event(new PasswordReset($user));
+                Auth::attempt(\request()->only('email', 'password'));
+            }
+        );
+
+        if (!$status == \Illuminate\Support\Facades\Password::PASSWORD_RESET) {
+            response()->json(['message' => __($status)], 400);
+        }
+        $user = User::query()->where('email', \request()->only('email'))->first();
+        return $this->returnDataWithTokenAndData($user, __($status));
+    }
+
+    private function returnDataWithTokenAndData($user, $msg): \Illuminate\Http\JsonResponse
     {
         $token = $user->createToken(request()->get('token_name') ?? 'app')->plainTextToken;
         return response()->json(['message' => $msg, 'data' => ['user' => $user, 'token' => $token]]);
