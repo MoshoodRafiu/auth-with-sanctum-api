@@ -52,4 +52,27 @@ class AuthTest extends TestCase
 //        $response->dump();
         $response->assertStatus(200);
     }
+
+    public function test_get_auth_user()
+    {
+        Sanctum::actingAs(
+            User::factory()->create()
+        );
+
+        $response = $this->json('get', '/auth/user');
+
+//        $response->dump();
+        $response->assertStatus(200);
+    }
+
+    public function test_send_password_reset_link_request()
+    {
+        $user = User::factory()->create();
+        $response = $this->json('post', '/auth/password/reset/send-link', [
+            'email' => $user['email']
+        ]);
+
+//        $response->dump();
+        $response->assertStatus(200);
+    }
 }

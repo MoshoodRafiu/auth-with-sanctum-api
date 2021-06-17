@@ -19,4 +19,11 @@ Route::prefix('auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/user', [AuthController::class, 'me']);
+
+    Route::post('/password/reset/send-link', [AuthController::class, 'sendPasswordResetLink'])->middleware('throttle:3,1');
+    Route::post('/password/reset', [AuthController::class, 'resetPassword']);
+
+    Route::post('/email/verify', [AuthController::class, 'verifyEmail']);
+    Route::post('/email/resend-link', [AuthController::class, 'resendEmailVerificationLink']);
 });

@@ -73,6 +73,11 @@ class AuthController extends Controller
         return response()->json(['message' => 'Logout successful']);
     }
 
+    public function me(): \Illuminate\Http\JsonResponse
+    {
+        return response()->json(['data' => \request()->user()]);
+    }
+
     public function sendPasswordResetLink(): \Illuminate\Http\JsonResponse
     {
         $validator = Validator::make(\request()->all(), [
@@ -122,6 +127,52 @@ class AuthController extends Controller
         }
         $user = User::query()->where('email', \request()->only('email'))->first();
         return $this->returnDataWithTokenAndData($user, __($status));
+    }
+
+    public function resendEmailVerificationLink(): \Illuminate\Http\JsonResponse
+    {
+        $user = \request()->user();
+        if ($user['email_verified_at']){
+            return response()->json(['message' => 'Email already verified'],400);
+        }
+        $otp = sha1($user['email'].time());
+        $user->update([
+            'email_verification_token' => Hash::make($otp),
+            'email_verification_token_expiry' => date('Y-m-d H:i:s', strtotime(now().' + 1 hour'))
+        ]);
+        // Send email verification email
+        SendVerificationEmailJob::dispatch($user, 'signup', ['otp' => $otp]);
+        return response()->json(['message' => 'Email verification link resent to '.$user['email']]);
+    }
+
+    public function verifyEmail(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            "token" => ['required', 'string'],
+            "email" => ['required', 'email', 'string']
+        ]);
+        if ($validator->fails()){
+            return response()->json([
+                'message' => 'Invalid input data',
+                'errors' => $validator->messages()
+            ], 422);
+        }
+        $user = User::all()->where('email', $request['email'])->first();
+        if (!$user){
+            return response()->json(['message' => 'User account not found'],400);
+        }
+        if ($user['email_verified_at']){
+            return response()->json(['message' => 'Email already verified'],400);
+        }
+        if (!Hash::check($request['token'], $user['email_verification_token'])){
+            return response()->json(['message' => 'Email not verified, token is invalid'],400);
+        }
+        if (now()->gt($user['email_verification_token_expiry'])){
+            return response()->json(['message' => 'Email not verified, token has expired'],400);
+        }
+        $user['email_verified_at'] = now();
+        $user->save();
+        return response()->json(['message' => 'Email verified successfully']);
     }
 
     private function returnDataWithTokenAndData($user, $msg): \Illuminate\Http\JsonResponse
