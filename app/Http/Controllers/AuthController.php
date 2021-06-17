@@ -27,7 +27,10 @@ class AuthController extends Controller
             'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()]
         ]);
         if ($validator->fails()){
-            return response()->json(['message' => 'Input validation error', 'errors' => $validator->messages()], 422);
+            return response()->json([
+                'message' => 'Input validation error',
+                'errors' => $validator->messages()
+            ], 422);
         }
         // Set up data and create user
         $credentials['password'] = Hash::make($credentials['password']);
@@ -35,13 +38,30 @@ class AuthController extends Controller
         $credentials['email_verification_token'] = Hash::make($otp);
         $credentials['email_verification_token_expiry'] = now()->addHour();
         $user = User::create($credentials);
-        // Send email verification email
+        // Send email verification email and send response
         SendVerificationEmailJob::dispatch($user, $otp);
-        // Log user in
-        if (!Auth::attempt(request()->only('email', 'password'))){
-            return response()->json(['message' => 'Something went wrong'], 400);
-        }
         return $this->returnDataWithTokenOrUser($user, 'Registration Successful');
+    }
+
+    public function login(): \Illuminate\Http\JsonResponse
+    {
+        // Validate request
+        $credentials = request(['email', 'password']);
+        $validator = Validator::make($credentials, [
+            'email' => ['required', 'email'],
+            'password' => ['required']
+        ]);
+        if ($validator->fails()){
+            return response()->json([
+                'message' => 'Input validation error',
+                'errors' => $validator->messages()
+            ], 422);
+        }
+        if (!Auth::attempt(request()->only('email', 'password'))){
+            return response()->json(['message' => 'Invalid login credentials'], 400);
+        }
+        $user = User::query()->where('email', request()->get('email'))->first();
+        return $this->returnDataWithTokenOrUser($user, 'Login Successful');
     }
 
     private function returnDataWithTokenOrUser($user, $msg): \Illuminate\Http\JsonResponse
